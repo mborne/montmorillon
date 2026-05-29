@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Montmorillon — Carte Touristique</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Crimson+Text:ital@0;1&family=Cinzel:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --parchment: #f5edd6;
+    --parchment-dark: #e8d9b8;
+    --ink: #2c1f0f;
+    --ink-light: #5c3d1e;
+    --gold: #b8860b;
+    --red-seal: #8b1a1a;
+    --blue-river: #4a6fa5;
+    --green: #4a6741;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Crimson Text', Georgia, serif; background: var(--parchment); color: var(--ink); min-height: 100vh; }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 1000;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  }
+  header {
+    text-align: center; padding: 2.2rem 1rem 1.2rem;
+    background: linear-gradient(180deg, var(--parchment-dark) 0%, var(--parchment) 100%);
+    border-bottom: 3px double var(--gold);
+  }
+  .header-ornament { font-size: 1rem; color: var(--gold); letter-spacing: 0.5rem; display: block; margin-bottom: 0.4rem; }
+  h1 { font-family: 'Cinzel', serif; font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 600; color: var(--ink); letter-spacing: 0.08em; line-height: 1; }
+  h1 span { color: var(--gold); }
+  .subtitle { font-family: 'Playfair Display', serif; font-style: italic; font-size: 1.1rem; color: var(--ink-light); margin-top: 0.4rem; }
+  .divider { display: flex; align-items: center; gap: 1rem; justify-content: center; margin: 0.6rem auto; max-width: 400px; }
+  .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--gold); }
+  .divider span { color: var(--gold); }
+  .dept-tag { font-family: 'Cinzel', serif; font-size: 0.72rem; letter-spacing: 0.2em; color: var(--red-seal); margin-top: 0.3rem; }
+  .main-layout { display: grid; grid-template-columns: 1fr 310px; min-height: calc(100vh - 170px); }
+  .sidebar {
+    background: linear-gradient(180deg, var(--parchment-dark) 0%, var(--parchment) 100%);
+    border-left: 2px solid var(--gold); padding: 1.2rem 1rem;
+    overflow-y: auto; max-height: calc(100vh - 170px);
+  }
+  .sidebar-title { font-family: 'Cinzel', serif; font-size: 0.75rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); text-align: center; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--parchment-dark); }
+  .legend-group { margin-bottom: 1.2rem; }
+  .legend-group-title { font-family: 'Cinzel', serif; font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-light); margin-bottom: 0.5rem; border-left: 2px solid var(--gold); padding-left: 0.5rem; }
+  .poi-list { list-style: none; }
+  .poi-item { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.4rem 0.3rem; border-radius: 3px; cursor: pointer; transition: background 0.15s; border-bottom: 1px solid rgba(184,134,11,0.12); }
+  .poi-item:hover { background: rgba(184,134,11,0.1); }
+  .poi-icon { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; margin-top: 1px; border: 1.5px solid rgba(0,0,0,0.15); }
+  .poi-name { font-size: 0.88rem; line-height: 1.25; color: var(--ink); }
+  .poi-detail { font-size: 0.74rem; color: var(--ink-light); font-style: italic; display: block; }
+  #map { height: calc(100vh - 170px); }
+  
+  .leaflet-popup-content-wrapper {
+    background: var(--parchment); border: 2px solid var(--gold); border-radius: 4px;
+    box-shadow: 4px 4px 12px rgba(44,31,15,0.2); font-family: 'Crimson Text', Georgia, serif;
+  }
+  .leaflet-popup-content { margin: 0.8rem 1rem; min-width: 180px; max-width: 260px; }
+  .popup-title { font-family: 'Cinzel', serif; font-size: 0.82rem; color: var(--ink); margin-bottom: 0.25rem; line-height: 1.3; }
+  .popup-type { font-style: italic; font-size: 0.8rem; color: var(--gold); margin-bottom: 0.3rem; display: block; }
+  .popup-info { font-size: 0.76rem; color: var(--ink-light); margin-top: 0.2rem; line-height: 1.4; }
+  .popup-web { font-size: 0.7rem; color: var(--blue-river); margin-top: 0.35rem; display: block; }
+  .popup-source { font-size: 0.67rem; color: var(--gold); font-family: 'Cinzel', serif; letter-spacing: 0.04em; margin-top: 0.35rem; }
+  .leaflet-popup-tip { background: var(--gold); }
+  .badge-mh { display: inline-block; font-size: 0.62rem; background: var(--red-seal); color: white; font-family: 'Cinzel', serif; letter-spacing: 0.05em; padding: 1px 5px; border-radius: 2px; margin-left: 4px; vertical-align: middle; }
+  .river-legend { display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0; font-size: 0.85rem; }
+  .river-line { width: 28px; height: 3px; background: var(--blue-river); border-radius: 2px; }
+  .source-note { background: rgba(184,134,11,0.07); border: 1px solid rgba(184,134,11,0.25); border-radius: 4px; padding: 0.55rem 0.7rem; font-size: 0.73rem; color: var(--ink-light); margin-top: 0.8rem; line-height: 1.5; }
+  .source-note strong { color: var(--gold); font-family: 'Cinzel', serif; font-size: 0.68rem; letter-spacing: 0.05em; display: block; margin-bottom: 0.15rem; }
+  footer { text-align: center; padding: 0.7rem 1rem; background: var(--parchment-dark); border-top: 3px double var(--gold); font-size: 0.76rem; color: var(--ink-light); font-style: italic; }
+  footer strong { color: var(--gold); font-style: normal; font-family: 'Cinzel', serif; font-size: 0.68rem; letter-spacing: 0.1em; }
+
+  /* ── Switcher fond de carte ── */
+  .layer-switcher {
+    cursor: pointer;
+    background: white;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.35);
+    border: 2px solid white;
+    width: 80px;
+    transition: transform .15s, box-shadow .15s;
+    margin: 0 0 8px 8px;
+  }
+  .layer-switcher:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.45);
+    border-color: var(--gold);
+  }
+  .switcher-label {
+    font-family: 'Cinzel', serif;
+    font-size: 0.58rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 3px 4px 2px;
+    background: var(--ink);
+    color: var(--gold);
+  }
+  .switcher-thumb-wrap {
+    position: relative;
+    width: 80px;
+    height: 80px;
+    overflow: hidden;
+  }
+  .switcher-thumb-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .switcher-name {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: rgba(44,31,15,0.72);
+    color: #f5edd6;
+    font-family: 'Crimson Text', serif;
+    font-size: 0.7rem;
+    text-align: center;
+    padding: 2px 4px;
+    letter-spacing: 0.02em;
+  }
+  @media (max-width: 768px) {
+    .main-layout { grid-template-columns: 1fr; }
+    #map { height: 60vh; }
+    .sidebar { max-height: 40vh; border-right: none; border-top: 2px solid var(--gold); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="header-ornament">✦ ✦ ✦</span>
+  <h1>MONTMORILLON</h1>
+  <div class="divider"><span>❧</span></div>
+  <p class="subtitle">Cité de l'Écrit &amp; Patrimoine Roman — Ville d'Art et d'Histoire</p>
+  <p class="dept-tag">Vienne · Nouvelle-Aquitaine · Population : 5 821 hab.</p>
+</header>
+
+<div class="main-layout">
+  <div id="map"></div>
+  <aside class="sidebar">
+    <div class="sidebar-title">Légende &amp; Points d'intérêt</div>
+
+    <div class="legend-group">
+      <div class="legend-group-title">🏛 Musées</div>
+      <ul class="poi-list" id="list-musees"></ul>
+    </div>
+    <div class="legend-group">
+      <div class="legend-group-title">⛪ Patrimoine religieux &amp; MH</div>
+      <ul class="poi-list" id="list-religieux"></ul>
+    </div>
+    <div class="legend-group">
+      <div class="legend-group-title">🏰 Monuments civils &amp; MH</div>
+      <ul class="poi-list" id="list-monuments"></ul>
+    </div>
+    <div class="legend-group">
+      <div class="legend-group-title">📚 Cité de l'Écrit</div>
+      <ul class="poi-list" id="list-ecrit"></ul>
+    </div>
+    <div class="legend-group">
+      <div class="legend-group-title">🌿 Espaces &amp; Promenades</div>
+      <ul class="poi-list" id="list-espaces"></ul>
+    </div>
+    <div class="legend-group">
+      <div class="legend-group-title">🍽 Restauration</div>
+      <ul class="poi-list" id="list-restos"></ul>
+    </div>
+    <div class="legend-group">
+      <div class="legend-group-title">🏨 Hébergement</div>
+      <ul class="poi-list" id="list-hotels"></ul>
+    </div>
+    <div class="legend-group">
+      <div class="legend-group-title">ℹ️ Services touristiques</div>
+      <ul class="poi-list" id="list-services"></ul>
+    </div>
+    <div class="legend-group">
+      <div class="legend-group-title">🌟 Spécialités &amp; Terroir</div>
+      <ul class="poi-list" id="list-specialites"></ul>
+    </div>
+
+    <div class="legend-group">
+      <div class="legend-group-title">💧 Cours d'eau</div>
+      <div class="river-legend"><div class="river-line"></div> La Gartempe</div>
+    </div>
+
+    <div class="source-note">
+      <strong>Sources de données</strong>
+      <b>IGN Géoplateforme (WFS)</b> : BD TOPO® — <em>zone_d_activite_ou_d_interet</em>, <em>cours_d_eau</em><br>
+      <b>Web</b> : montmorillon.fr, citedelecrit.fr, Routard, Petit Futé, Office de Tourisme Sud Vienne Poitou, Google Places<br>
+      MH = Monument Historique classé
+    </div>
+  </aside>
+</div>
+
+<footer>
+  <strong>CARTE TOURISTIQUE ENRICHIE</strong> — IGN Géoplateforme (WFS) × Recherche web · Montmorillon, Vienne 86500
+</footer>
+
+<script>
+// ========== DONNÉES COMBINÉES IGN + WEB ==========
+const POI_DATA = {
+
+  musees: [
+    {
+      name: "Musée d'Art et d'Histoire",
+      type: "Musée municipal",
+      address: "5 av. Pasteur", lat: 46.4285926, lng: 0.8725894,
+      hours: "Mar & Ven : 14h–18h | Mer & Sam : 9h30–18h",
+      note: "Collection Raoul Carré (1936), peintures XXe s. Collection locale. Accès libre.",
+      source_ign: true, source_web: true,
+      mh: false
+    },
+    {
+      name: "Musée de l'Amande et du Macaron",
+      type: "Musée gastronomique — Maison Rannou-Métivier",
+      address: "34 bd de Strasbourg", lat: 46.424493, lng: 0.870271,
+      hours: "Tlj 9h30–12h · 14h–18h (dim. 10h–18h)",
+      note: "Histoire du macaron montmorillonnais depuis 1880. Dégustation incluse.",
+      source_ign: true, source_web: true,
+      mh: false
+    }
+  ],
+
+  religieux: [
+    {
+      name: "Église Notre-Dame",
+      type: "Église romane — Fresques XIIe s.",
+      address: "Place Régine Déforges", lat: 46.4261396, lng: 0.8664762,
+      note: "Crypte Sainte-Catherine ornée de peintures murales du XIIe s. Surplombe la Gartempe et le Vieux Pont. En travaux (vérifier avant visite).",
+      source_ign: true, source_web: true, mh: true
+    },
+    {
+      name: "Église Saint-Martial",
+      type: "Église romane XIIe s. (reconstruite XIXe)",
+      address: "Place Saint-Martial", lat: 46.426649, lng: 0.871733,
+      hours: "9h–17h tous les jours",
+      note: "Architecture romane poitevine. Ouverte à la visite.",
+      source_ign: true, source_web: true, mh: true
+    },
+    {
+      name: "L'Octogone — Chapelle funéraire",
+      type: "Chapelle romane XIIe s. — unique en Europe",
+      address: "Rue des Augustins", lat: 46.421577, lng: 0.864085,
+      note: "Ancienne chapelle funéraire à plan octogonal (unique en Europe romane). Ossuaire au rez-de-chaussée, chapelle à l'étage coiffée d'une coupole angevine XIIIe. Clé à l'Office de Tourisme.",
+      source_ign: true, source_web: true, mh: true
+    },
+    {
+      name: "Chapelle Saint-Laurent — Maison-Dieu",
+      type: "Chapelle monastique XIIe s.",
+      address: "Rue des Augustins", lat: 46.4220, lng: 0.8643,
+      note: "Façade et clocher XIIe s. Peintures murales XIXe. Tombe d'Étienne de La Hire, écuyer de Jeanne d'Arc et seigneur de Montmorillon.",
+      source_ign: true, source_web: true, mh: true
+    }
+  ],
+
+  monuments: [
+    {
+      name: "Maison-Dieu (Ancien Hôtel-Dieu)",
+      type: "Ensemble monastique XIe–XVIIe s.",
+      address: "23 rue des Augustins", lat: 46.4218, lng: 0.8641,
+      note: "Fondé au XIe s. pour accueillir pèlerins et malades. Comprend l'Octogone, la chapelle Saint-Laurent, la tour de fortification XIVe, le chauffoir, la grange des dîmes et 4,5 ha de jardins. Visite guidée via l'OT.",
+      source_ign: false, source_web: true, mh: true
+    },
+    {
+      name: "Le Vieux Pont gothique",
+      type: "Pont médiéval XVe s.",
+      address: "Sur la Gartempe", lat: 46.4257755, lng: 0.8673797,
+      note: "Icône de Montmorillon. Mentionné dès le XIIe s., reconstruit au XVe. Vue splendide sur Notre-Dame et le quartier du Brouard. Ancienne porte de ville fortifiée côté rive droite.",
+      source_ign: false, source_web: true, mh: true
+    },
+    {
+      name: "Hôtel de Moussac",
+      type: "Hôtel particulier XVIIIe s.",
+      address: "16 rue Solférino", lat: 46.4265, lng: 0.8700,
+      note: "Construit en 1755. Classé MH (1973). Rampe en fer forgé, salons Louis XV. Propriété privée — admiration de l'extérieur.",
+      source_ign: false, source_web: true, mh: true
+    },
+    {
+      name: "Le Vieux Palais",
+      type: "Palais médiéval XVe s.",
+      address: "Bords de la Gartempe", lat: 46.4260, lng: 0.8660,
+      note: "XVe siècle. Tour ronde reconnaissable côté façade. Non ouvert au public en dehors de certaines occasions.",
+      source_ign: false, source_web: true, mh: false
+    },
+    {
+      name: "Tour du château (Statue de la Vierge)",
+      type: "Éperon rocheux — ancienne motte castrale",
+      address: "Rive gauche", lat: 46.4278, lng: 0.8658,
+      note: "Construite sur le site de l'ancien château médiéval. Grande statue de la Vierge au sommet. Vue panoramique sur la ville.",
+      source_ign: false, source_web: true, mh: false
+    }
+  ],
+
+  ecrit: [
+    {
+      name: "Cité de l'Écrit & des Métiers du Livre",
+      type: "Quartier thématique — 25 boutiques artisanales",
+      address: "Quartier du Brouard — rue Montebello", lat: 46.425638, lng: 0.864694,
+      note: "Unique en France : librairies, reliure, enluminure, calligraphie, carterie, gravure… Ruelles médiévales entièrement rénovées. Ateliers & stages. Jeu de piste « Gazette de Philibert » (familles). Salon de l'édition indépendante en septembre.",
+      source_ign: true, source_web: true, mh: false
+    }
+  ],
+
+  espaces: [
+    {
+      name: "Espace Camille Olivet",
+      type: "Parc au bord de la Gartempe",
+      address: "23 av. Fernand Tribot", lat: 46.4204857, lng: 0.873904,
+      note: "Jardins sur les bords de Gartempe avec vue sur Notre-Dame. Marché estival le jeudi soir.",
+      source_ign: true, source_web: true, mh: false
+    },
+    {
+      name: "Prairie du Séminaire & Jardins de la Maison-Dieu",
+      type: "Espace public — parc & théâtre de verdure",
+      address: "Montmorillon", lat: 46.4228, lng: 0.8648,
+      note: "4,5 ha de jardins monastiques. Vaste prairie aménagée avec théâtre de verdure en plein air.",
+      source_ign: true, source_web: true, mh: false
+    },
+    {
+      name: "Square Alphonse Boudard",
+      type: "Square public",
+      address: "Montmorillon", lat: 46.4265, lng: 0.867,
+      note: "En hommage à l'écrivain Alphonse Boudard, originaire de Montmorillon.",
+      source_ign: true, source_web: false, mh: false
+    }
+  ],
+
+  restos: [
+    {
+      name: "Le Roman des Saveurs ⭐⭐⭐",
+      type: "Restaurant gastronomique — vue sur le Vieux Pont",
+      address: "2 rue Montebello", lat: 46.4259626, lng: 0.8668614,
+      hours: "Mar–Sam : 12h–14h · 19h30–22h | Dim : 12h–14h | Lun fermé",
+      note: "Vue sur la Gartempe et le Vieux Pont. Chef-propriétaire en salle. Menus à partir de 21€. Spectacle lumineux la nuit. Note : 4,5/5 (900 avis).",
+      source_ign: false, source_web: true, mh: false
+    },
+    {
+      name: "Le Lucullus ⭐⭐",
+      type: "Restaurant gastronomique — Logis de France",
+      address: "4 bd de Strasbourg", lat: 46.42367, lng: 0.8698517,
+      hours: "Tlj 7h–21h",
+      note: "Chef Alban Gilpin. Cuisine raffinée du terroir poitevin. Note : 4,6/5 (812 avis).",
+      source_ign: false, source_web: true, mh: false
+    },
+    {
+      name: "L'Insolite Rétro-Guinguette",
+      type: "Bar & guinguette — bord de Gartempe",
+      address: "2 rue Léon Dardant", lat: 46.423274, lng: 0.868449,
+      hours: "Mai–sept. Lun/Mer/Jeu : 16h–22h | Ven : 16h–minuit | Sam : 12h–minuit | Dim : 12h–22h",
+      note: "Terrasse au bord de la Gartempe dans l'un des plus vieux garages Citroën de France. Planches locales, glaces artisanales. Note : 4,8/5.",
+      source_ign: false, source_web: true, mh: false
+    },
+    {
+      name: "Café du Pont de Bois",
+      type: "Café-restaurant — bord de Gartempe",
+      address: "2 rue Puits Chaussée", lat: 46.4264959, lng: 0.8699371,
+      hours: "Mar–Sam : 10h–15h · 17h–21h | Dim : 10h–14h · 16h–21h | Lun fermé",
+      note: "Terrasse avec vue sur la rivière. Burgers et frites maison plébiscités. Note : 4,5/5.",
+      source_ign: false, source_web: true, mh: false
+    }
+  ],
+
+  hotels: [
+    {
+      name: "Logis Hôtel de France",
+      type: "Hôtel ★★ — Restaurant Le Lucullus",
+      address: "4 bd de Strasbourg", lat: 46.4237276, lng: 0.8698669,
+      note: "En centre-ville. Note : 4,2/5 (254 avis).",
+      source_ign: false, source_web: true, mh: false
+    },
+    {
+      name: "Camping Municipal l'Allochon",
+      type: "Camping ★★ — bord de Gartempe",
+      address: "31 av. Fernand Tribot", lat: 46.4203031, lng: 0.8757298,
+      note: "5 min à pied du centre. Au bord de la Gartempe. Note : 4,6/5 (214 avis).",
+      source_ign: true, source_web: true, mh: false
+    }
+  ],
+
+  services: [
+    {
+      name: "Office de Tourisme Sud Vienne Poitou",
+      type: "Office de tourisme",
+      address: "2 place du Maréchal Leclerc", lat: 46.4254518, lng: 0.8681386,
+      hours: "Lun–Dim : 9h30–12h30 · 14h–17h30",
+      note: "Clés de l'Octogone, visites guidées de la Maison-Dieu. Jeu de piste familles. Tél. : 05 49 91 11 96.",
+      source_ign: true, source_web: true, mh: false
+    }
+  ],
+
+  specialites: [
+    {
+      name: "Maison Rannou-Métivier",
+      type: "🍪 Macaron de Montmorillon — EPV depuis XVIIe s.",
+      address: "32 bd de Strasbourg", lat: 46.4244475, lng: 0.8703667,
+      hours: "Lun : 9h–12h30 · 14h30–19h | Mar–Jeu : 8h30–19h | Ven : 8h30–19h | Sam : 8h30–12h30 · 13h30–19h | Dim : 9h–12h30 · 14h30–19h",
+      note: "Maison fondée au XIXe s. Recette secrète transmise sur 5 générations. Entreprise du Patrimoine Vivant. Le macaron serait arrivé à Montmorillon via le frère Roger Girard, confesseur de Marie de Médicis au prieuré de la Maison-Dieu (XVIIe s.). Note : 4,5/5 (293 avis).",
+      source_ign: false, source_web: true, mh: false
+    },
+    {
+      name: "Bières de Montmorillon",
+      type: "🍺 Brasserie artisanale bio — fondée en 1843",
+      address: "23 rue des Métiers", lat: 46.4318021, lng: 0.8991154,
+      hours: "Lun–Ven : 9h–12h30 · 14h–17h | Sam–Dim fermé",
+      note: "La plus ancienne brasserie de la région (1843, moulin de Saulgé). Fermée en 1963, relancée en 2015 par François Guillon en bio. Fut la bière la plus vendue de la France libre pendant l'Occupation. Gamme : blonde, blanche, IPA, Armagnac, limonade, cola. Note : 4,8/5 (12 avis).",
+      source_ign: false, source_web: true, mh: false
+    },
+    {
+      name: "Montmorillonite — site d'extraction historique",
+      type: "🪨 Argile verte — spécialité minérale mondiale",
+      address: "Région de Montmorillon / Usson-du-Poitou", lat: 46.427, lng: 0.863,
+      note: "Argile verte identifiée en 1847 par M. Mauduyt, qui lui donna le nom de la ville. Riche en fer, magnésium, calcium, silice. Utilisée en phytothérapie (gastro-entérites), cosmétique et beauté. Extraite à Montmorillon et Usson-du-Poitou (Vienne). Présente sur Mars !",
+      source_ign: false, source_web: true, mh: false
+    },
+    {
+      name: "Le Mijet — tradition de Saulgé",
+      type: "🍷 Boisson traditionnelle — fête annuelle",
+      address: "Les Mâts de Saulgé (commune voisine)", lat: 46.3786, lng: 0.8764,
+      note: "Boisson locale à base de vin, sucre et pain. Tradition poitevine ancienne donnant lieu à une fête annuelle au lieu-dit « les Mâts de Saulgé ». Variante : la « soupe à l'ajasse » (lait à la place du vin, pour les enfants).",
+      source_ign: false, source_web: true, mh: false
+    },
+    {
+      name: "Aux Grandes Z'oreilles",
+      type: "🫏 Asinerie & savonnerie artisanale",
+      address: "6 rue des Vieilles Vignes, Pindray", lat: 46.479052, lng: 0.833565,
+      hours: "Mer & Sam : 14h–19h",
+      note: "Savons, baumes et cosmétiques artisanaux au lait d'ânesse. Ferme familiale entre Montmorillon et Chauvigny. Produits naturels pour peaux sensibles et eczéma. Note : 4,9/5 (60 avis).",
+      source_ign: false, source_web: true, mh: false
+    },
+    {
+      name: "Marché de Montmorillon",
+      type: "🧺 Marché hebdomadaire — produits locaux",
+      address: "Place du Maréchal Leclerc", lat: 46.4256488, lng: 0.8683253,
+      hours: "Mercredi matin",
+      note: "Marché du terroir chaque mercredi matin. Producteurs locaux, fruits, légumes, fromages, macarons, miel, volailles du Poitou.",
+      source_ign: false, source_web: true, mh: false
+    }
+  ]
+};
+
+const COLORS = {
+  musees: '#8b1a1a',
+  religieux: '#6b4c8b',
+  monuments: '#5a3a1a',
+  ecrit: '#2c6b6b',
+  espaces: '#4a6741',
+  restos: '#c4572a',
+  hotels: '#4a6fa5',
+  services: '#b8860b',
+  specialites: '#b5451b'
+};
+
+const ICONS = {
+  musees: '🏛', religieux: '⛪', monuments: '🏰',
+  ecrit: '📚', espaces: '🌿', restos: '🍽',
+  hotels: '🏨', services: 'ℹ️', specialites: '🌟'
+};
+
+// Fonds de carte IGN via Géoplateforme (data.geopf.fr) — sans clé
+const ignAttrib = '© <a href="https://www.ign.fr">IGN</a> — Géoplateforme nationale';
+
+const planIgn = L.tileLayer(
+  'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&FORMAT=image/png&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}',
+  { attribution: ignAttrib + ' · Plan IGN V2', maxZoom: 19, maxNativeZoom: 19 }
+);
+
+const ortho = L.tileLayer(
+  'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}',
+  { attribution: ignAttrib + ' · Orthophotos', maxZoom: 19, maxNativeZoom: 19 }
+);
+
+const map = L.map('map', { center: [46.430, 0.875], zoom: 13, zoomControl: true, layers: [planIgn] });
+
+// ── Switcher image personnalisé ──────────────────────────────────────────────
+// Vignettes miniatures (tuile centrale de Montmorillon z=14)
+const THUMB = {
+  plan:  'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&FORMAT=image/png&TILEMATRIXSET=PM&TILEMATRIX=14&TILEROW=5898&TILECOL=8264',
+  ortho: 'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM&TILEMATRIX=14&TILEROW=5898&TILECOL=8264'
+};
+
+let currentLayer = 'plan';
+
+const SwitcherControl = L.Control.extend({
+  options: { position: 'bottomleft' },
+  onAdd() {
+    const wrap = L.DomUtil.create('div', 'layer-switcher');
+    wrap.title = 'Changer le fond de carte';
+    // On affiche la vignette de l'AUTRE couche (clic = on y bascule)
+    wrap.innerHTML = `
+      <div class="switcher-label">Fond de carte</div>
+      <div class="switcher-thumb-wrap">
+        <img id="switcher-thumb" src="${THUMB.ortho}" />
+        <div class="switcher-name" id="switcher-name">Orthophotos</div>
+      </div>`;
+    L.DomEvent.disableClickPropagation(wrap);
+    wrap.addEventListener('click', () => {
+      if (currentLayer === 'plan') {
+        map.removeLayer(planIgn);
+        map.addLayer(ortho);
+        currentLayer = 'ortho';
+        document.getElementById('switcher-thumb').src = THUMB.plan;
+        document.getElementById('switcher-name').textContent = 'Plan IGN';
+      } else {
+        map.removeLayer(ortho);
+        map.addLayer(planIgn);
+        currentLayer = 'plan';
+        document.getElementById('switcher-thumb').src = THUMB.ortho;
+        document.getElementById('switcher-name').textContent = 'Orthophotos';
+      }
+    });
+    return wrap;
+  }
+});
+new SwitcherControl().addTo(map);
+
+function createIcon(color, emoji) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:34px;height:34px;background:${color};border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2.5px solid white;box-shadow:2px 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(45deg);font-size:13px;display:block;">${emoji}</span></div>`,
+    iconSize: [34,34], iconAnchor: [17,34], popupAnchor: [0,-34]
+  });
+}
+
+function buildPopup(poi) {
+  const mhBadge = poi.mh ? '<span class="badge-mh">MH</span>' : '';
+  const srcBadges = [
+    poi.source_ign ? '<span style="color:#b8860b;font-weight:bold;">IGN</span>' : '',
+    poi.source_web ? '<span style="color:#4a6fa5;font-weight:bold;">Web</span>' : ''
+  ].filter(Boolean).join(' + ');
+  return `
+    <div class="popup-title">${poi.name}${mhBadge}</div>
+    <span class="popup-type">${poi.type}</span>
+    ${poi.address ? `<div class="popup-info">📍 ${poi.address}</div>` : ''}
+    ${poi.hours ? `<div class="popup-info">🕐 ${poi.hours}</div>` : ''}
+    ${poi.note ? `<div class="popup-info" style="margin-top:0.3rem;font-style:italic;">${poi.note}</div>` : ''}
+    <div class="popup-source">Source : ${srcBadges}</div>
+  `;
+}
+
+Object.entries(POI_DATA).forEach(([cat, data]) => {
+  const color = COLORS[cat];
+  const emoji = ICONS[cat];
+  const icon = createIcon(color, emoji);
+  const listEl = document.getElementById('list-' + cat);
+  data.forEach(poi => {
+    const marker = L.marker([poi.lat, poi.lng], { icon }).addTo(map);
+    marker.bindPopup(buildPopup(poi), { maxWidth: 280 });
+    const li = document.createElement('li');
+    li.className = 'poi-item';
+    li.innerHTML = `
+      <div class="poi-icon" style="background:${color};color:white;">${emoji}</div>
+      <div>
+        <div class="poi-name">${poi.name}${poi.mh ? ' <span style="font-size:0.65rem;color:#8b1a1a;font-family:Cinzel,serif;">MH</span>' : ''}</div>
+        <span class="poi-detail">${poi.type}</span>
+      </div>`;
+    li.addEventListener('click', () => { map.setView([poi.lat, poi.lng], 17); marker.openPopup(); });
+    listEl.appendChild(li);
+  });
+});
+
+// Rivière Gartempe
+L.polyline([
+  [46.4182,0.8760],[46.4195,0.8748],[46.4207,0.8738],[46.4215,0.8720],
+  [46.4225,0.8700],[46.4238,0.8680],[46.4248,0.8665],[46.4258,0.8650],
+  [46.4270,0.8638],[46.4282,0.8628],[46.4295,0.8618],[46.4310,0.8610]
+], { color:'#4a6fa5', weight:4, opacity:0.75 }).addTo(map)
+  .bindPopup(`<div class="popup-title">La Gartempe</div><span class="popup-type">Rivière — importance 2/6 (IGN)</span><div class="popup-info">Affluent de la Creuse. Traverse Montmorillon N–S. Pêche, kayak en amont.</div><div class="popup-source">Source : IGN BD TOPO® — cours_d_eau</div>`);
+
+// Label rivière
+L.marker([46.4238,0.8668],{icon:L.divIcon({className:'',html:`<div style="font-family:'Playfair Display',serif;font-style:italic;font-size:11px;color:#4a6fa5;text-shadow:1px 1px 2px rgba(245,237,214,.9);white-space:nowrap;transform:rotate(-15deg);letter-spacing:.05em;">la Gartempe</div>`,iconSize:[85,18],iconAnchor:[42,9]})}).addTo(map);
+
+// Zone Cité de l'Écrit
+L.circle([46.4252,0.8645],{radius:190,color:'#2c6b6b',fillColor:'#2c6b6b',fillOpacity:0.08,weight:2,dashArray:'6 4'}).addTo(map)
+  .bindPopup(`<div class="popup-title">Cité de l'Écrit</div><span class="popup-type">Quartier thématique — unique en France</span><div class="popup-info">Quartier du Brouard entièrement rénové. Ruelles médiévales, maisons à colombages, 25+ boutiques liées au livre et aux métiers d'art.</div><div class="popup-source">Source : citedelecrit.fr + IGN</div>`);
+
+L.control.scale({ imperial: false, metric: true, position: 'bottomright' }).addTo(map);
+</script>
+</body>
+</html>
